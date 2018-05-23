@@ -222,3 +222,184 @@ In ES an object refers to a *data-structure* containing both the data and the be
 A primitive value is data that is not an object, so it doesn't provide any methods.
 
 A primitive value is **immutable** and it is data that is represented directly at the lowest level of the language implementation.
+
+## ES specification types
+
+*A specification type is a meta-value that is used by algorithms to describe the semantics (way in which something can be used) of ES language constructs and types.*
+
+Specification values do not necessarily correspond to any specific entity of the ES implementation, meaning that some of them are just abstractions and not concrete values with which we can interact.
+
+Specification values cannot be stored as properties of objects nor as values inside variables.
+
+The specification types are : `List`, `Record`, `Set`, `Relation`, `Reference`, `Completion`, `Property Descriptor`, `Lexical Environment`, `Environment Record`, `Data Block`.
+
+### `List` and `Record`
+
+The `List` type is used to explain the evaluation of argument lists in `new` expressions, function calls and anywhere an ordered list of values is needed.
+
+The `List` type is used to describe an ordered list of elements.
+
+A `List` value is an ordered sequence of elements. Each element is an individual value. The sequence can be of any length and elements can be accessed using indices.
+
+`arguments[2]` is a shorthand for saying the 3rd element of the `List` called `arguments`.
+
+`<< 1, 2 >>` represents a `List` of 2 elements, both initialized with a certain value. An empty `List` is represented as `<< >>`.
+
+The `Record` type is used to describe data aggregation within algorithms.
+
+A `Record` value consists of one or more named fields, the value of which is either an ES language value or an abstract value. Field names are enclosed in `[[]]`.
+
+`{ [[Field1]]: 42, [[Field2]]: false, [[Field3]]: empty }` defines a `Record` value with 3 fields, each initialized to a specific value. Fields are not ordered.
+
+If `R` is the name of a `Record` value, then `R.[[Field2]]` is a shorthand for saying the field of `R` named `[[Field2]]`.
+
+### `Set` and `Relation`
+
+The `Set` type is used to describe a collection of unordered elements for use in the *memory model*.
+
+A `Set` value is a collection of elements, where no elements appears more than once. Elements can be added or removed from a `Set`.
+
+`Set`s support operations like union, intersection and subtraction.
+
+The `Relation` type is used to represent constraints on a `Set` value.
+
+A `Relation` value is a `Set` of ordered pairs of values from the `Relation` domain. For example a `Relation` on events is a `Set` of ordered pairs of events.
+
+If `R` is a `Relation` and `a` and `b` are 2 values in `R` value domain, then `a R b` is a shorthand for saying that the ordered pair `(a, b)` is a member of `R`.
+
+Given certain conditions, the smallest `Relation` that satisfies them is said to be *least* with respect to those conditions.
+
+A *strict partial order* is a `Relation` value `R` that satisfies the conditions of *irreflexivity* and *transitivity*:
+1. For all `a`, `b` and `c` in `R` domain:
+  a. it's **not** the case that `a R a` (irreflexivity)
+  b. if `a R b` and `b R c` then `a R c` (transitivity)
+
+A *strict total order* is a `Relation` value `R` that satisfies the conditions of *totality*, *irreflexivity* and *transitivity*:
+1. For all `a`, `b` and `c` in `R` domain:
+  a. `a R b` or `b R a` (totality)
+  b. it's **not** the case that `a R a` (irreflexivity)
+  c. if `a R b` and `b R c` then `a R c` (transitivity)
+
+### `Completion Record`
+
+The `Completion` type is a `Record` used to explain the runtime propagation of values and control flow (i.e. the behavior of statements like `continue`, `break`, `return`, `throw`) that perform non-local transfer of control.
+
+A `Completion` value is a `Record` value whose fields are:
+```
+  Field     | Value               | Meaning                                    |
+--------------------------------------------------------------------------------
+[[Type]]    | one of normal, break| the type of Completion Record that occurred|
+            | continue, return,   |                                            |
+            | or throw            |                                            |
+--------------------------------------------------------------------------------
+[[Value]]   | any ES language     | the value that was produced                |
+            | value or empty      |                                            |
+--------------------------------------------------------------------------------
+[[Target]]  | string or empty     | the target label for directed control      |
+            |                     | transfer                                   |
+```
+Such `Record` is called a `Completion Record`.
+
+Basically a `Completion Record` explains how something interrupted execution, with what value, and what will execute next.
+
+An *abrupt completion* is a completion with a `[[Type]]` value which is not `normal`.
+
+`NormalCompletion` is an *abstract operation*.
+The syntax `NormalCompletion(argument)` is a shorthand for saying return `Completion{ [[Type]]: normal, [[Value]]: argument, [[Target]]: empty }`.
+
+#### implicit `Completion` values
+
+Algorithms often implicitly return a `Completion Record` with a `[[Type]]: normal`.
+For example, the syntax `return Infinity` is a shorthand for saying return `NormalCompletion(Infinity)`.
+
+But a `Completion Record` can also be explicitly returned.
+
+If the return expression is a call to an abstract operation then the `Completion Record` of that abstract operation is returned.
+
+`Completion` is an abstract operation and `Completion(completionRecord)` is used to emphasize that a previously computed `Completion Record` is now returned.
+
+`Completion(completionRecord)` follows 2 steps:
+1. assert that `completionRecord` is a `Completion Record`
+2. return `completionRecord`
+
+A return statement without a value is the same as saying `NormalCompletion(undefined)`.
+
+#### thrown exceptions
+
+An algorithm that throws an exception returns a `Completion Record` with `[[Type]]: throw`.
+
+For example, throw a `TypeError` exception is a shorthand for return `Completion{ [[Type]]: throw, [[Value]]: TypeError object, [[Target]]: empty }`.
+
+#### abrupt returns
+
+An algorithm step which is `ReturnIfAbrupt(argument)` is equivalent to:
+1. if `argument` is an *abrupt completion* return `argument`
+2. else if `argument` is a `Completion Record`, let it be `argument.[[Value]]`
+
+Basically this means, if we have an abrupt completion return it, else if it is a normal completion return its `[[Value]]`.
+
+**Reminder:** an abrupt completion is any `Completion Record` with a `[[Type]]` which is not `normal`.
+
+An algorithm step which is `ReturnIfAbrupt(AbstractOperation())` is the same as:
+1. let `hygienicTemp` be `AbstractOperation()`
+2. if `hygienicTemp` is an abrupt completion return `hygienicTemp`
+3. else if `hygienicTemp` is a `Completion Record`, let it be `hygienicTemp.[[Value]]`
+
+Basically this means, execute the `AbstractOperation()`. If it returns an abrupt completion, return it. Else return its `[[Value]]`.
+
+An algorithm step which is `AbstractOperation(ReturnIfAbrupt(argument))` is equivalent to:
+1. if `argument` is an abrupt completion return `argument`
+2. if `argument` is a `CompletionRecord`, let it be `argument.[[Value]]`
+3. let result be `AbstractOperation(argument)`
+
+#### `UpdateEmpty(completionRecord, value)`
+
+`UpdateEmpty` is an abstract operation.
+When invoked in the form `UpdateEmpty(completionRecord, value)` it does:
+1. assert if `completionRecord.[[Type]]` is either `return` or `throw`, then assert that `completionRecord.[[Value]]` is not `empty`
+2. if that's the case return `Completion(completionRecord)`
+3. return `Completion{ [[Type]]: completionRecord.[[Type]], [[Value]]: value, [[Target]]: completionRecord.[[Target]] }`
+
+### `Reference` type
+
+The `Reference` type is used to explain the behavior of operations like `delete`, `typeof`, assignments, `super` and more. For example, the left-hand side of an assignment operation is expected to return a `Reference`.
+
+A `Reference` is a resolved name or property binding.
+
+A `Reference` has 3 *components*:
+- base value component, is either `undefined`, `object`, `boolean`, `string`, `number`, `symbol` or `Environment Record`. If it is `undefined` it mean that the `Reference` could not be resolved to a binding.
+- referenced name component, is either a `string` or `symbol`
+- strict reference flag, is a `boolean`
+
+*The base value is the context in which the referenced name lives.* If the base value component is **undefined**, then there's not actual binding corresponding to the referenced name. If the base value is a primitive value or an object then the referenced name is a property on that object (in case of a primitive value we have boxing, that is the primitive is automatically wrapped in an object before property access). If the base value is an environment record, that means the binding of the referenced name is variable, and the environment record is the execution context in which that variable lives.
+
+A `Super Reference` is a `Reference` that is used to represent a name binding that was expressed using `super`. Such `Reference` has an additional *thisValue component* and its *value component* will never be an `Environment Record`.
+
+The abstract operations used to operate on `Reference`s are `GetValue`, `PutValue`, `GetThisValue` and `InitializeReferenceBinding`.
+
+#### `Property Descriptor` type
+
+The `Property Descriptor` type is used to describe the attributes of object properties.
+
+A `Property Descriptor` value is a `Record`. Each field is an attribute and the value of the field is the value of that attribute. Any field can be present or absent.
+
+There are 3 kinds of `Property Descriptor`s, *data `Property Descriptor`*, *accessor `Property Descriptor`* and *generic `Property Descriptor`*.
+
+A data `Property Descriptor` has a `[[Value]]` or `[[Writable]]` (or both) field.
+An accessor `Property Descriptor` has a `[[Get]]` or `[[Set]]` (or both) field.
+
+In both cases the other 2 fields are `[[Enumerable]]` and `[[Configurable]]`.
+
+A generic `Property Descriptor` is neither a data `Property Descriptor` nor an accessor `Property Descriptor` (in this case it is not fully-populated, i.e. only has the `[[Writable]]` and/or `[[Configurable]]` fields).
+
+The abstract operations on a `Property Descriptor` are: `IsAccessorDescriptor`, `IsDataDescriptor`, `IsGenericDescriptor`, `FromPropertyDescriptor`, `ToPropertyDescriptor`, `CompletePropertyDescriptor`.
+
+#### `Data Block` type
+
+The `Data Block` type is used to describe a *distinct and mutable* sequence of byte-sized (8 bit) numeric values.
+
+A `Data Block` value is created with a fix number of bytes that each has the initial value of `0`. An array-like syntax is used to access the individual bytes of a `Data Block` value. Each byte is an element in the `Data Block`.
+
+A `Data Block` value in memory that can be concurrently referenced from multiple places, is called a *shared `Data Block`*. A shared `Data Block` has an *identity* used for equality testing.
+
+The abstract operations defined on `Data Block`s values are: `CreateByteDataBlock`, `CreateSharedByteDataBlock`, `CopyDataBlockBytes`.
