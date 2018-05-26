@@ -304,3 +304,136 @@ The `Strict Equality Comparison` algorithm doesn't allow type conversion, which 
 This algorithm handles directly the comparison of `x` and `y` if they have type `number`. The comparison of values of any other type is delegated to the `SameValueNonNumber` algorithm.
 
 The `Strict Equality Comparison` algorithm treats any `NaN` value different from any other `NaN` value (even itself). Also it doesn't consider signed zeroes, so both `-0 === +0` and `+0 === -0` return `true`.
+
+# Abstract operations on objects
+
+## Get(*O, P*)
+
+The `Get` abstract operation takes in an object `O` and a valid property key `P` and retrieves the value of `P` on `O`.
+
+This operation calls the object `[[Get]]` essential internal method passing in `P` and `O` itself, which will be used as context in case `P` is a getter.
+
+## GetV(*V, P*)
+
+This abstract operation takes in any ES language value `V` and a valid property key `P` and retrieves the value of the property `P` on `V`. If `V` is not an `object` value, then it is first wrapped within an object of the subtype corresponding to `V` type by the `ToObject` abstract operation. Then the `[[Get]]` essential internal method is called on this object passing in `P` and `V`, which will be used as context in case `P` is a getter.
+
+## Set(*O, P, V, Throw*)
+
+The `Set` abstract operation is used to set the value of a property on an object. It will return either `true` or `false` or `throw` an error.
+
+`Set` takes in an object `O`, a valid property key `P`, any ES language value `V` and a `boolean` flag called `Throw`.
+
+`Set` abstract operation:
+- First call the `[[Set]]` essential internal method on the object, passing in `P`, `V` and `O` itself, which will be used as context in case `P` is a setter.
+`[[Set]]` internal method returns `true` if the operation succeeded, else it returns `false`.
+- If `[[Set]]` returns `false` and `Throw` is `true`, then throw a `TypeError`.
+- Else return the result of `[[Set]]`
+
+## CreateDataProperty(*O, P, V*)
+
+This abstract operation is used to create a new own property of the object `O`. `P` is a valid property key and `V` is the value to be assigned to `P`.
+
+`CreateDataProperty` abstract operation:
+- First create a new `PropertyDescriptor` with `[[Value]]` being `V` and all the other fields set to `true`.
+- Then call the `[[DefineOwnProperty]]` essential internal method on `O` passing in `P` and the `PropertyDescriptor`. `[[DefineOwnProperty]]` returns `true` if the operation succeeded, else returns `false`.
+- Return the result of `[[DefineOwnProperty]]`
+
+`CreateDataProperty` creates a new property with the same default fields set by the assignment operator.
+
+If the property `P` already exists on `O` and it is not configurable, then `[[DefineOwnProperty]]` returns `false`.
+
+If `O` is not extensible, then `[[DefineOwnProperty]]` also returns `false`.
+
+## CreateMethodProperty(*O, P, V*)
+
+This abstract operation is used to create a new own property on the object `O`.
+`P` is a valid property key and `V` is the value to be assigned to `P`.
+
+The `CreateMethodProperty` abstract operation works just like `CreateDataProperty`, the difference is that the `PropertyDescriptor` this time has the `[[Enumerable]]` field set to `false`.
+
+`CreateMethodProperty` creates a new property with the same default fields used for built-in methods and for methods defined using class declaration syntax.
+
+## CreateDataPropertyOrThrow(*O, P, V*)
+
+The `CreateDataPropertyOrThrow` abstract operation is used to set a new own property on an object, but if the operation fails it throws an error.
+
+`CreateDataPropertyOrThrow` first calls `CreateDataProperty`, then if it returns `false`, `CreateDataPropertyOrThrow` throws a `TypeError`.
+
+## DefinePropertyOrThrow(*O, P, desc*)
+
+This abstract operation calls the `[[DefineOwnProperty]]` essential internal method on the object `O`, passing in a valid property key `P` and a `PropertyDescriptor` `desc`. If `[[DefineOwnProperty]]` returns `false`, then `DefinePropertyOrThrow` throws a `TypeError`
+
+## DeletePropertyOrThrow(*O, P*)
+
+This abstract operation calls the `[[Delete]]` essential internal method on the object `O` passing in the valid property key `P`. `[[Delete]]` returns `true` if the operation was successful, else it returns `false` (i.e. `P` is a non-configurable property).
+In case `[[Delete]]` returns `false`, `DeletePropertyOrThrow` throws a `TypeError`.
+
+## GetMehod(*V, P*)
+
+This abstract operation is used to retrieve a property on a value, and that property is expected to be a function.
+
+`GetMehod` takes in any ES language value `V` and a valid property key `P` and returns `undefined` or the function or `throw`s a `TypeError`.
+
+The `GetMehod` abstract operation:
+- First call `GetV` passing in the value `V` and the property key `P`. `GetV` accepts any ES language value and wraps it in an object in case it's a primitive type.
+- If `GetV` returns `undefined` or `null`, then return `undefined`
+- Else check if the result is a function (i.e. has a `[[Call]]` internal method)
+  - if it doesn't, throw a `TypeError`
+  - else return that function
+
+## HasProperty(*O, P*)
+
+This abstract operation is called with an object `O` and a valid property key `P` and it checks if `P` is a property on the object `O` (either own or inherited).
+
+`HasProperty` calls the `[[HasProperty]]` essential internal method on the object `O` passing in `P` and returns its result (either `true` or `false`).
+
+## HasOwnProperty(*O, P*)
+
+This abstract operation takes in an object `O` and a valid property key `P` and it checks if `P` is an own property of `O`.
+
+`HasOwnProperty` calls the `[[GetOwnProperty]]` essential internal method on the object `O` passing in the property key `P`. This method returns a `PropertyDescriptor` or `undefined` if `P` is not on `O`. `HasOwnProperty` returns `true` and `false` respectively.
+
+## Call(*F, V[, argumentsList]*)
+
+The `Call` abstract operation is used to invoke the `[[Call]]` essential internal method on a function object.
+
+`Call` takes in a value `F` supposed to be the function, an ES language value `V` which is used by `[[Call]]` as value of `this` for this function invocation, and optionally a list of arguments, which are the arguments with which the function is invoked.
+
+The `Call` abstract operation:
+- First check if `argumentsList` is present, if not set it to be a new empty `List`
+- Then check if `F` is actually a function (i.e. has an internal `[[Call]]` method) and if it's not throw a `TypeError`
+- Else, execute the `[[Call]]` internal method on `F` passing in `V` and the `argumentsList` and return its result
+
+## Construct(*F[, argumentsList[, newTarget]]*)
+
+This abstract operation takes in a function object `F` which can be called as a constructor function, and optionally an `argumentsList`, which is the list of arguments with which `F` was invoked, and a `newTarget` which is the value to which the `new` keyword was applied.
+
+**NB:** by using `@@species` we can change the target of the `new` keyword.
+
+`Construct` calls the `[[Construct]]` internal method on `F` passing in the `argumentsList` and `newTarget`. This method builds a new object and sets the context of `F` to be that object. It also returns this object in case `F` doesn't explicitly return anything else.
+
+The `Construct` abstract operation:
+- First check if `newTarget` was passed and if not set `newTarget` to be `F`
+- Check if `argumentsList` was passed, else set it to be an empty `List`
+- Return the result of calling the `[[Construct]]` internal method on `F` passing in the `argumentsList` and `newTarget`.
+
+## SetIntegrityLevel(*O, level*)
+
+This abstract operation is used to set the level of immutability of an object. It takes in an object `O` and a `level` which can be either `"sealed"` or `"frozen"`.
+
+`SetIntegrityLevel` first tries to make the object non-extensible. If this operation fails, then `SetIntegrityLevel` returns `false`, else it either succeeds and returns `true` or fails with a `TypeError`.
+
+The `SetIntegrityLevel` abstract operation:
+- First call the `[[PreventExtensions]]` essential internal method on the object `O`.
+- If this method returns `false`, then return `false`.
+- Else retrieve all the keys of the own properties of the object `O` by calling the `[[OwnPropertyKeys]]` essential internal method on `O`. This method returns a `List` of the keys.
+- If `level` is `"sealed"` then for each key in keys call the `DefinePropertyOrThrow` abstract operation passing in the object `O`, the key and the `PropertyDescriptor{ [[Configurable]]: false }`.
+- Else `level` is `"frozen"` then for each key in keys
+  - call the `[[GetOwnProperty]]` essential internal method on the object `O` passing in the key
+  - if the result is an accessor `PropertyDescriptor` then call the abstract operation `DefinePropertyOrThrow` passing in the object `O`, the key and the `PropertyDescriptor{ [[Configurable]]: false }`
+  - else the result is either a data or generic `PropertyDescriptor` and call `DefinePropertyOrThrow` passing in `O`, the key and `PropertyDescriptor{ [[Configurable]]: false, [[Writable]]: false }`
+- Return `true`
+
+If `DefinePropertyOrThrow` throws a `TypeError`, then `SetIntegrityLevel` also throws that same error.
+
+## TestIntegrityLevel(*O, level*)
