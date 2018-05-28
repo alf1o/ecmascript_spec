@@ -437,3 +437,142 @@ The `SetIntegrityLevel` abstract operation:
 If `DefinePropertyOrThrow` throws a `TypeError`, then `SetIntegrityLevel` also throws that same error.
 
 ## TestIntegrityLevel(*O, level*)
+
+This abstract operation takes in an object `O` and a `level` (either `"sealed"` or `"frozen"`) and checks if `O` has that immutability level. `TestIntegrityLevel` retrieves all the own property keys of `O` and for each key, if the `level` is `"sealed"`, checks that the `[[Configurable]]` attribute is `false`. If the `level` is `"frozen"`, it additionally checks if the `[[Writable]]` attribute is `false`.
+
+The `TestIntegrityLevel` abstract operation:
+- First check if `O` is extensible, and if it is, then return `false` (no property is checked)
+- If `O` is not extensible, then retrieve a `List` of the keys of all its own properties by calling the essential internal method `[[OwnPropertyKeys]]`
+- For each key in the `List`
+  - get the property descriptor by calling the essential internal method `[[GetOwnProperty]]` passing in key
+  - if the `[[Configurable]]` field is `true`, the return `false`
+  - else if `level` is `"frozen"` and if the property at this key is a data descriptor (`IsDataDescriptor` returns `true`) then if the `[[Writable]]` field is `true`, then return `false`
+- Return `true`
+
+## CreateArrayFromList(*elements*)
+
+This abstract operation takes in a `List` of ES language values and uses it to generate an array `object.`
+
+The `CreateArrayFromList` abstract operation:
+- First create an array of `length` set to `0` by calling the `ArrayCreate` abstract operation
+- Then, set `n` to be `0` and for each element in `elements`
+  - execute `CreateDataProperty` passing in the array, `ToString(n)` and the element
+  - increment `n` by `1`
+- Return the array
+
+## CreateListFromArrayLike(*obj[, elementTypes]*)
+
+# Abstract operations on iterator objects
+
+## GetIterator(*obj[, hint[, method]]*)
+
+This abstract operation tries to retrieve a `Record` representing the iterator of an object `obj`. The `method` argument is the method on `obj` that is used to retrieve such iterator. The `hint` is either `"sync"` or `"async"` and if `method` is not passed, then `hint` is used to retrieve either the `@@iterator` or the `@@asyncIterator` method on the `obj`.
+
+The `Record` returned has 3 fields: `[[Iterator]]`, with the value of the iterator object on `obj`, `[[NextMethod]]`, with the value of the `next` method of this iterator, `[[Done]]`, a `boolean` representing if the iterator is done running.
+
+The `GetIterator` abstract operation:
+- If `hint` is not present set it to `"sync"`
+- If `method` is not present then
+  - if `hint` is `"async"`
+    - try retrieve the `@@asyncIterator` method on `obj` (by using `GetMehod`) and assign it to `method`
+    - if `obj` doesn't have an `@@asyncIterator` method
+      - then try retrieve the `@@iterator` method
+      - then call `GetIterator` on `obj`, passing `"sync"` as `hint` and `@@iterator` as method
+      - create an async iterator `Record` from the result, and return it
+  - if instead `hint` is `"sync"` then try retrieve the `@@iterator` method
+- Try retrieve the iterator by calling `method` on the `obj`
+- If the iterator is not an `object`, then throw a `TypeError`
+- Else, get the `next` method from the iterator (by calling `GetV`)
+- Generate the `Record{ [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }` and return it
+
+## IteratorNext(*iteratorRecord[, value]*)
+
+This abstract operation calls the `next` method on the iterator represented by `iteratorRecord`. The result of the call, should be an `object`, which is then returned. If `value` is present, it is passed as argument in the call of `next`.
+
+The `IteratorNext` abstract operation:
+- If `value` is not present, then call the `next` method of the iterator (`iteratorRecord.[[NextMehod]]`) passing an empty `List` of arguments
+- Else, call the `next` method passing a `List` containing the `value`
+- If the result of the call is not an `object`, then throw a `TypeError`
+- Else return that result
+
+## IteratorComplete(*iterResult*)
+
+This abstract operation takes in an `object` value, which is the result of the call of the `next` method on an iterator object, and returns the value of the `done` property of this object converted to `boolean` by the `ToBoolean` abstract operation (`ToBoolean(Get(iterResult, "done"))`).
+
+## IteratorValue(*iterResult*)
+
+This abstract operation takes is an object, which is the result of calling `next` on an iterator, and returns the value of the `value` property of this object.
+
+## IteratorStep(*iteratorRecord*)
+
+This abstract operation takes in the `Record` of an iterator object and checks if there are more iterations to do. It calls the `next` method on the iterator and checks if `done` on the result is `true`. If there are no more iterations to perform, `IteratorStep` returns `false`, else it returns the result object.
+
+The `IteratorStep` abstract operation:
+- First call the `IteratorNext` abstract operation passing the `iteratorRecord`
+- Then call the `IteratorComplete` passing in the result
+- If done is `true`, then return `false`
+- Else return the result object
+
+## IteratorClose(*iteratorRecord, completion*)
+
+This abstract operation is called with an iterator `Record` and a `CompletionRecord` and terminates the iterator right away rather then moving it to its next state.
+
+The `IteratorClose` abstract operation:
+- Retrieve the iterator object from the `[[Iterator]]` field of `iteratorRecord`
+- Try get the `return` method from the iterator
+- If there isn't, return the `completion` `CompletionRecord`
+- Else call `return` with an empty `List` of arguments, using the iterator as context and save the result in innerResult
+- If `completion` has a `[[Type]]` field of `throw`, then return `completion`
+- Else if innerResult has a `[[Type]]` of `throw`, then return innerResult
+- Else, if innerResult has a `[[Value]]` field value which is not an `object`, then throw a `TypeError`
+- Else, return `completion`
+
+## AsyncIteratorClose(*iteratorRecord, completion*)
+
+This abstract operation is used to terminate an async iterator.
+
+The `AsyncIteratorClose` abstract operation:
+- First get the iterator from the `[[Iterator]]` field of `iteratorRecord`
+- Try get the `return` method from the iterator
+- If there isn't, return `completion`
+- Else, call `return` passing the iterator as context and an empty `List` of arguments and store the result in innerResult
+- If innerResult has a `[[Type]]` field of `normal`, then set innerResult to be the result of calling the `Await` abstract operation passing in `innerResult.[[Value]]`
+- If `completion` has a `[[Type]]` of `throw`, then return `completion`
+- Else if innerResult has a `[[Type]]` of `throw`, then return innerResult
+- Else if the value of the `[[Value]]` field of innerResult is not an `object`, then throw a `TypeError`
+- Else return `completion`
+
+## CreateIterResultObject(*value, done*)
+
+This abstract operation takes in a any ES language value as `value`, and a `done` argument which is a `boolean`, and creates a new object that can be used as result of a call to an iterator `next` method.
+
+The `CreateIterResultObject` abstract operation:
+- Create an ordinary object by calling `ObjectCreate(%ObjectPrototype%)`
+- Create a data property called `"value"` with the value of `value`
+- Create a data property called `"done"` with the value of `done`
+- Return the object
+
+## CreateListIteratorRecord(*list*)
+
+This abstract operation is called with a `List` argument and returns a `Record` representing an iterator object. Calls of the `next` method of this iterator will return the values inside `list`.
+
+The `CreateListIteratorRecord` abstract operation:
+- Create a new ordinary object with 2 empty internal slots named `[[IteratedList]]` and `[[ListIteratorNextIndex]]` by calling `ObjectCreate` passing in `%IteratorPrototype%` and a `List` with the internal slots
+- Set the value of `iterator.[[IteratedList]]` to be `list`
+- Set the value of `iterator.[[ListIteratorNextIndex]]` to be `0`
+- Define **steps** as being the algorithm steps of a standard iterator `next` method
+- Create a `next` method by calling `CreateBuiltInFunction` passing in **steps**
+- Build an iterator `Record{ [[Iterator]]: iterator, [[NextMehod]]: next, [[Done]]: false }` and return it
+
+## ListIterator next()
+
+This is a standard built-in function. Its algorithm is the one used by `CreateListIteratorRecord` to create the `next` method for the iterator object.
+It returns an object with a `value` and a `done` property.
+
+- Let `O` be an object used as the value of `this`
+- Define **list** as being the value of the internal slot `[[IteratedList]]` on `O`
+- Define **index** as being the value of the internal slot `[[ListIteratorNextIndex]]` on `O`
+- Define **len** as being the number of elements in `list`
+- If **index** is greater or equal than **len**, then create a new object with a `value` property of `undefined` and a `done` property of `true` (by calling `CreateIterResultObject`) and return it
+- Else set `O.[[ListIteratorNextIndex]]` to be `index + 1`
+- Create a new object with a `value` property of `list[index]` and a `done` property of `false` and return it
