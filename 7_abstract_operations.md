@@ -408,8 +408,6 @@ The `Call` abstract operation:
 
 This abstract operation takes in a function object `F` which can be called as a constructor function, and optionally an `argumentsList`, which is the list of arguments with which `F` was invoked, and a `newTarget` which is the value to which the `new` keyword was applied.
 
-**NB:** by using `@@species` we can change the target of the `new` keyword.
-
 `Construct` calls the `[[Construct]]` internal method on `F` passing in the `argumentsList` and `newTarget`. This method builds a new object and sets the context of `F` to be that object. It also returns this object in case `F` doesn't explicitly return anything else.
 
 The `Construct` abstract operation:
