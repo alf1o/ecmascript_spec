@@ -282,3 +282,67 @@ The `GetGlobalObject` abstract operation:
 - Let ctx be the running `Execution Context`
 - Get the current `Realm` from ctx
 - Return the value of `currentRealm.[[GlobalObject]]`
+
+## Jobs and Job Queues
+
+A `Job` is an abstract operation that initiates an ES computation when no other computation is in progress.
+
+A `Job` might take in an arbitrary set of parameters.
+
+The execution of a `Job` can happen only when there is no running `Execution Context` and the `Execution Context` stack is empty.
+
+A `PendingJob` is a request for the future execution of a `Job`. It is an internal `Record` that holds all the information necessary for running the associated `Job`.
+
+`Job`s always execute to completion. That is no `Job` can be initiated while another `Job` is running.
+
+`Job`s can cause other `Job`s to be enqueued in the `Job` queue. That is a `Job` can generate `PendingJob Record`s.
+
+A `PendingJob` has 5 fields:
+- `[[Job]]`: the name of a `Job`. It's the abstract operation that will be executed when this `PendingJob` is taken from the queue.
+- `[[Arguments]]`: the `List` of arguments passed to the `[[Job]]` abstract operation.
+- `[[Realm]]`: the `Realm Record` for the initial `Execution Context` when this `PendingJob` is initiated.
+- `[[ScriptOrModule]]`: the script or module for the initial `Execution Context` when this `PendingJob` is initiated.
+- `[[HostDefined]]`: field reserved for any additional information the host environment needs to give the `PendingJob`. The default value is **undefined**.
+
+A `Job Queue` is a queue (first-in first-out) of `PendingJob`s.
+
+There can be many `Job Queue`s and each has its own name. Every ES implementation must at least provide 2 `Job Queue`s:
+- `ScriptJobs`: contains the `Job`s that validate and evaluate ES script and module source text.
+- `PromiseJobs`: contains the `Job`s that are responsible for settling Promises.
+
+A request for the future execution of a `Job` is made by enqueueing a `PendingJob` for that `Job` in a `Job Queue`.
+When there is no running `Execution Context` and the `Execution Context` stack is empty, then the first `PendingJob` is removed from a `Job Queue`. The information it contains is used to generate a new `Execution Context` to start the execution of the `[[Job]]` abstract operation. This `Execution Context` is pushed into the stack, and becomes the running `Execution Context`.
+
+Implementation of the ES language is free to choose the order in which `Job Queue`s are served, and also what happens when there are no running `Execution Context`s and all the `Job Queue`s are empty.
+
+### EnqueueJob(*queueName, job, arguments*)
+
+This abstract operation takes in a `Job Queue` name as a `string` value `queueName`, a specific `Job` as `job`, and a `List` of arguments required by `job`.
+This abstract operation generates a new `PendingJob` for `job` and pushes in the `Job Queue` named `queueName`.
+
+The `EnqueueJob` abstract operation:
+- First retrieve from the running `Execution Context` its `Realm` and `ScriptOrModule` components
+- Create a new `PendingJob{ [[Job]]: job, [[Arguments]]: arguments, [[Realm]]: callerRealm, [[ScriptOrModule]]: callerScriptOrModule, [[HostDefined]]: undefined }`
+- Perform any host environment process on this `PendingJob`
+- Add `PendingJob` at the back of the `Job Queue` named `queueName`
+- Return `NormalCompletion(empty)`
+
+## Agents and Agent Cluster
+
+An `agent` is a set of `Execution Context`s, an `Execution Context` stack, a running `Execution Context`, a set of named `Job Queue`s, and `Agent Record` and an executing thread.
+
+Apart from the executing thread, whatever belongs to an `agent` is personal to that `agent`. Several `agent`s can share the same executing thread.
+
+The executing thread of an `agent` executes the `Job`s in the `Job Queue`s of that `agent` by using its `Execution Context` stack independently of any other `agent` that shares that thread. The exception to this is that one of the `agent`s sharing the executing thread has a `[[CanBlock]]` property set to **true**.
+
+When the executing thread executes the `Job`s in the `Job Queue` of a certain `agent`, that `agent` is called the *surrounding `agent`*, that is, it is the `agent` that provides the code with the running `Execution Context`, the `Execution Context` stack, the named `Job Queue`s and the `Agent Record` fields.
+
+Just like many other specification concepts, an `agent` is an abstract entity used to explain the internal mechanisms of the ES language and doesn't need to be an actual entity in any ES implementation.
+
+An `agent cluster` is a set of `agent`s that can communicate by operating on shared memory.
+
+Some `agent`s can communicate by message passing, but if they don't share the same memory then they aren't is the same `agent cluster`.
+
+Every `agent` belongs to only 1 `agent cluster`.
+
+Each `agent` must have an `Agent Record` with a `[[Signifier]]` property that uniquely identifies that `agent` in its `agent cluster`.
